@@ -16,7 +16,7 @@
 #include <tiny_obj_loader.h>
 #include "mateo_math.h"
 
-struct Vertex 
+typedef struct Vertex 
 {
 	vec3 pos;
 	vec3 color;
@@ -54,7 +54,7 @@ struct Vertex
 
 		return attributeDescriptions;
 	}
-};
+} Vertex;
 
 typedef struct UBO
 {
@@ -82,11 +82,11 @@ typedef struct Image
 	int				channels;
 } Image;
 
-const char* model_path			= "C:/dev/myVulkan-1/resources/models/human.obj";
-const char* texture_path		= "C:/dev/myVulkan-1/resources/textures/viking_room.png";
-const char* fragFile			= "C:/dev/myVulkan-1/resources/shaders/frag.spv";
-const char* vertFile			= "C:/dev/myVulkan-1/resources/shaders/vert.spv";
-const char* instanceLayers[] = { "VK_LAYER_KHRONOS_validation" };
+const char* model_path			 = "C:/dev/myVulkan-1/resources/models/human.obj";
+const char* texture_path		 = "C:/dev/myVulkan-1/resources/textures/viking_room.png";
+const char* fragFile			 = "C:/dev/myVulkan-1/resources/shaders/frag.spv";
+const char* vertFile			 = "C:/dev/myVulkan-1/resources/shaders/vert.spv";
+const char* instanceLayers[]	 = { "VK_LAYER_KHRONOS_validation" };
 const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 									 VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 									 VK_KHR_SURFACE_EXTENSION_NAME,
@@ -96,8 +96,8 @@ const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 std::vector<Vertex>			model_vertices;
 std::vector<uint32_t>		model_indices;
 
-Image						depth_image = {};
-Image						image_one = {};
+Image						depth_image{};
+Image						image_one{};
 uint32_t					current_frame = 0;
 
 VkBuffer					uniformBuffers[MAX_FRAMES_IN_FLIGHT];
@@ -147,7 +147,7 @@ VkPhysicalDeviceProperties	physical_device_prop;
 VkPhysicalDevice			physical_device;
 VkInstance					my_instance;
 
-float startTime = 0;
+float num = 0.0f;
 
 VkCommandBuffer begin_single_command_buffer()
 {
@@ -354,11 +354,11 @@ ReadEntireFile read_entire_file(const char* file_path)
 }
 void update_UBO(uint32_t image_index) 
 {
-	startTime++;
+	num++;
 	UBO ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), (startTime / 3000) * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 10.0f);
+	ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f,0.0f,(num/3000)));
+	ubo.view = glm::lookAt(glm::vec3(2.0f, 7.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.proj = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 100.0f);
 	ubo.proj[1][1] *= -1;
 
 	memcpy(uniformBuffersMapped[image_index], &ubo, sizeof(ubo));
@@ -988,11 +988,11 @@ void load_model()
 
 	tinyobj::LoadObj(&attrib, &shapes, &materials, 0, 0, model_path);
 
-	for(tinyobj::shape_t &shape : shapes) 
+	for(uint32_t i = 0; i < shapes.size(); i++) 
 	{
-		for(tinyobj::index_t &index: shape.mesh.indices) 
+		for(tinyobj::index_t &index: shapes[i].mesh.indices) 
 		{
-			Vertex vertex{};
+			Vertex vertex{1};
 			vertex.pos =
 			{
 				attrib.vertices[3 * index.vertex_index + 0],
