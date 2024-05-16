@@ -82,10 +82,15 @@ typedef struct Image
 	int				channels;
 } Image;
 
-const char* model_path			 = "C:/dev/myVulkan-1/resources/models/human.obj";
-const char* texture_path		 = "C:/dev/myVulkan-1/resources/textures/viking_room.png";
-const char* fragFile			 = "C:/dev/myVulkan-1/resources/shaders/frag.spv";
-const char* vertFile			 = "C:/dev/myVulkan-1/resources/shaders/vert.spv";
+
+const char* room_path		     = "C:/dev/myVulkan-1/resources/models/school.obj";
+const char* model_path			 = "C:/dev/myVulkan-1/resources/models/model_one.obj";
+const char* texture_path		 = "C:/dev/myVulkan-1/resources/textures/tex_model_one.png";
+const char* texture_path2		 = "C:/dev/myVulkan-1/resources/textures/tex_room.png";
+const char* fragFile1			 = "C:/dev/myVulkan-1/resources/shaders/frag_model_one.spv";
+const char* vertFile1			 = "C:/dev/myVulkan-1/resources/shaders/vert_model_one.spv";
+const char* fragFile2			 = "C:/dev/myVulkan-1/resources/shaders/frag_room_one.spv";
+const char* vertFile2			 = "C:/dev/myVulkan-1/resources/shaders/vert_model_one.spv";
 const char* instanceLayers[]	 = { "VK_LAYER_KHRONOS_validation" };
 const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 									 VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -98,15 +103,19 @@ std::vector<uint32_t>		model_indices;
 
 Image						depth_image{};
 Image						image_one{};
+Image						image_two{};
+
 uint32_t					current_frame = 0;
 
 VkBuffer					uniformBuffers[MAX_FRAMES_IN_FLIGHT];
 VkDeviceMemory				uniformBuffersMemory[MAX_FRAMES_IN_FLIGHT];
 void*						uniformBuffersMapped[MAX_FRAMES_IN_FLIGHT];
 
-VkDescriptorSet				descriptor_set[2];
+VkDescriptorSet				UBO_descriptor_set;
+VkDescriptorSet				tex_descriptor_set;
 VkDescriptorPool			descriptor_pool;
-VkDescriptorSetLayout		descriptor_set_layout[2];
+VkDescriptorSetLayout		tex_descriptor_set_layout;
+VkDescriptorSetLayout		UBO_descriptor_set_layout;
 
 VkDeviceMemory				indexBufferMemory;
 VkBuffer					indexBuffer;
@@ -124,6 +133,8 @@ VkPipeline					graphicsPipeline;
 VkPipelineLayout			pipelineLayout;
 VkShaderModule				vertShaderModule;
 VkShaderModule				fragShaderModule;
+VkShaderModule				vertShaderModule2;
+VkShaderModule				fragShaderModule2;
 
 VkSwapchainKHR				swapchain;
 VkImageView*				swapchain_image_views;
@@ -147,7 +158,7 @@ VkPhysicalDeviceProperties	physical_device_prop;
 VkPhysicalDevice			physical_device;
 VkInstance					my_instance;
 
-float num = 0.0f;
+float num = 1.0f;
 
 VkCommandBuffer begin_single_command_buffer()
 {
@@ -356,8 +367,8 @@ void update_UBO(uint32_t image_index)
 {
 	num++;
 	UBO ubo{};
-	ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f,0.0f,(num/3000)));
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 7.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.model = glm::rotate(glm::mat4(1.0f), (num/5000.0f) * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view = glm::lookAt(glm::vec3(5.0f, 15.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 100.0f);
 	ubo.proj[1][1] *= -1;
 
@@ -459,6 +470,8 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 	render_info.pColorAttachments = &color_attachment_info;
 	render_info.pDepthAttachment = &depth_attachment_info;
 
+	VkDescriptorSet sets[2] = {UBO_descriptor_set, tex_descriptor_set};
+
 	vkCmdBeginRendering(command_buffer, &render_info);
 
 		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -466,8 +479,8 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, descriptor_set, 0, nullptr);
-		vkCmdDrawIndexed(command_buffer, model_indices.size(), 1, 0,0,0);//sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, sets, 0, nullptr);
+		vkCmdDrawIndexed(command_buffer, model_indices.size(), 1, 0,0,0);
 	
 	vkCmdEndRendering(command_buffer);
 
@@ -693,42 +706,53 @@ void create_swapchain()
 		}
 	}
 }
-void create_descriptor_set_layout()
+
+void create_UBO_descriptor_set_layout()
 {
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	VkDescriptorSetLayoutBinding bindings[2] = {uboLayoutBinding, samplerLayoutBinding};
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_ALL;
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = sizeof(bindings) / sizeof(bindings[0]);
-	layoutInfo.pBindings = bindings;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &uboLayoutBinding;
 
-	if(vkCreateDescriptorSetLayout(logical_device, &layoutInfo, nullptr, &descriptor_set_layout[0]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor set layout.");
-	}
-	if(vkCreateDescriptorSetLayout(logical_device, &layoutInfo, nullptr, &descriptor_set_layout[1]) != VK_SUCCESS)
+	if(vkCreateDescriptorSetLayout(logical_device, &layoutInfo, nullptr, &UBO_descriptor_set_layout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor set layout.");
 	}
 }
+void create_tex_descriptor_set_layout()
+{
+    VkDescriptorSetLayoutBinding global_texture_bindings[2] = {};
+	global_texture_bindings[0].binding = 0;
+	global_texture_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	global_texture_bindings[0].descriptorCount = 1;
+	global_texture_bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+	global_texture_bindings[1].binding = 1;
+	global_texture_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	global_texture_bindings[1].descriptorCount = 1;
+	global_texture_bindings[1].stageFlags = VK_SHADER_STAGE_ALL;
+
+    VkDescriptorSetLayoutCreateInfo layout_info = {};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = 2;
+    layout_info.pBindings = global_texture_bindings;
+
+	if (vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &tex_descriptor_set_layout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create descriptor set layout.");
+	}
+}
+
 void create_graphics_pipeline()
 {
-	ReadEntireFile vert_shader_code = read_entire_file(vertFile);
-	ReadEntireFile frag_shader_code = read_entire_file(fragFile);
+	ReadEntireFile vert_shader_code = read_entire_file(vertFile1);
+	ReadEntireFile frag_shader_code = read_entire_file(fragFile1);
 
 	VkShaderModuleCreateInfo vertShaderCreateInfo{};
 	vertShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -761,7 +785,43 @@ void create_graphics_pipeline()
 	fragShaderStageCreateInfo.module = fragShaderModule;
 	fragShaderStageCreateInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageCreateInfo, fragShaderStageCreateInfo };
+	//2
+	ReadEntireFile vert_shader_code2 = read_entire_file(vertFile2);
+	ReadEntireFile frag_shader_code2 = read_entire_file(fragFile2);
+
+	VkShaderModuleCreateInfo vertShaderCreateInfo2{};
+	vertShaderCreateInfo2.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertShaderCreateInfo2.codeSize = vert_shader_code2.contents_size;
+	vertShaderCreateInfo2.pCode = (uint32_t*)(vert_shader_code2.contents);
+
+	VkShaderModuleCreateInfo fragShaderCreateInfo2{};
+	fragShaderCreateInfo2.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragShaderCreateInfo2.codeSize = frag_shader_code2.contents_size;
+	fragShaderCreateInfo2.pCode = (uint32_t*)(frag_shader_code2.contents);
+
+	if (vkCreateShaderModule(logical_device, &vertShaderCreateInfo2, nullptr, &vertShaderModule2) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create shader module.");
+	}
+	if (vkCreateShaderModule(logical_device, &fragShaderCreateInfo2, nullptr, &fragShaderModule2) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create shader module.");
+	}
+
+	VkPipelineShaderStageCreateInfo vertShaderStageCreateInfo2{};
+	vertShaderStageCreateInfo2.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageCreateInfo2.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertShaderStageCreateInfo2.module = vertShaderModule2;
+	vertShaderStageCreateInfo2.pName = "main";
+
+	VkPipelineShaderStageCreateInfo fragShaderStageCreateInfo2{};
+	fragShaderStageCreateInfo2.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageCreateInfo2.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragShaderStageCreateInfo2.module = fragShaderModule2;
+	fragShaderStageCreateInfo2.pName = "main";
+
+	VkPipelineShaderStageCreateInfo shaderStages[] = { //vertShaderStageCreateInfo, fragShaderStageCreateInfo,
+	vertShaderStageCreateInfo2,fragShaderStageCreateInfo2 }; 
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -848,10 +908,12 @@ void create_graphics_pipeline()
 	depthStencil.depthBoundsTestEnable = VK_FALSE;
 	depthStencil.stencilTestEnable = VK_FALSE;
 
+	VkDescriptorSetLayout layouts[2] = {UBO_descriptor_set_layout, tex_descriptor_set_layout};
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &descriptor_set_layout[0];
+	pipelineLayoutCreateInfo.setLayoutCount = 2;
+	pipelineLayoutCreateInfo.pSetLayouts = layouts;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = 0;
 
@@ -890,6 +952,8 @@ void create_graphics_pipeline()
 
 	vkDestroyShaderModule(logical_device, fragShaderModule, 0);
 	vkDestroyShaderModule(logical_device, vertShaderModule, 0);
+	vkDestroyShaderModule(logical_device, fragShaderModule2, 0);
+	vkDestroyShaderModule(logical_device, vertShaderModule2, 0);
 }
 void create_commandpool()
 {
@@ -915,13 +979,13 @@ void create_depth_resources()
 	set_image_layout(command_buffer, depth_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 	end_single_command_buffer(command_buffer);
 }
-void create_texture_image()
+void create_texture_image(Image* image, const char* path)
 {
-	stbi_uc* pixels = stbi_load(texture_path, &image_one.width, &image_one.height, &image_one.channels,
+	stbi_uc* pixels = stbi_load(path, &image->width, &image->height, &image->channels,
 	STBI_rgb_alpha);
 
-	image_one.format = VK_FORMAT_R8G8B8A8_SRGB;
-	VkDeviceSize image_size = (uint64_t)image_one.width * (uint64_t)image_one.height * 4;
+	image->format = VK_FORMAT_R8G8B8A8_SRGB;
+	VkDeviceSize image_size = (uint64_t)image->width * (uint64_t)image->height * 4;
 
 	if(!pixels) 
 	{
@@ -941,14 +1005,14 @@ void create_texture_image()
 
 	stbi_image_free(pixels);
 
-	create_image(&image_one, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	create_image(image, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	VkCommandBuffer command_buffer = begin_single_command_buffer();
 
-	set_image_layout(command_buffer, image_one.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copy_buffer_to_image(command_buffer, stagingBuffer, &image_one);
-	set_image_layout(command_buffer, image_one.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	set_image_layout(command_buffer, image->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copy_buffer_to_image(command_buffer, stagingBuffer, image);
+	set_image_layout(command_buffer, image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	end_single_command_buffer(command_buffer);
 
@@ -980,19 +1044,19 @@ void create_texture_sampler()
 		throw std::runtime_error("Failed to create texture sampler.");
 	}
 }
-void load_model()
+void load_model(const char* path)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 
-	tinyobj::LoadObj(&attrib, &shapes, &materials, 0, 0, model_path);
+	tinyobj::LoadObj(&attrib, &shapes, &materials, 0, 0, path);
 
 	for(uint32_t i = 0; i < shapes.size(); i++) 
 	{
 		for(tinyobj::index_t &index: shapes[i].mesh.indices) 
 		{
-			Vertex vertex{1};
+			Vertex vertex{};
 			vertex.pos =
 			{
 				attrib.vertices[3 * index.vertex_index + 0],
@@ -1013,7 +1077,7 @@ void load_model()
 }
 void create_vertex_buffer()
 {
-	VkDeviceSize buffer_size = sizeof(model_vertices[0]) * model_vertices.size();//sizeof(vertices[0]) * (sizeof(vertices) / sizeof(vertices[0]));
+	VkDeviceSize buffer_size = sizeof(model_vertices[0]) * model_vertices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1036,7 +1100,7 @@ void create_vertex_buffer()
 }
 void create_index_buffer()
 {
-	VkDeviceSize buffer_size = sizeof(model_indices[0]) * model_indices.size();//sizeof(indices[0]) * (sizeof(indices) / sizeof(indices[0]));
+	VkDeviceSize buffer_size = sizeof(model_indices[0]) * model_indices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1088,15 +1152,16 @@ void create_descriptor_pool()
 		throw std::runtime_error("Failed to create descriptor pool.");
 	}
 }
-void create_descriptor_sets()
+
+void create_UBO_descriptor_sets()
 {
 	VkDescriptorSetAllocateInfo setAllocInfo{};
 	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	setAllocInfo.descriptorPool = descriptor_pool;
-	setAllocInfo.descriptorSetCount = 2;
-	setAllocInfo.pSetLayouts = descriptor_set_layout;
+	setAllocInfo.descriptorSetCount = 1;
+	setAllocInfo.pSetLayouts = &UBO_descriptor_set_layout;
 
-	if(vkAllocateDescriptorSets(logical_device, &setAllocInfo, descriptor_set) != VK_SUCCESS)
+	if(vkAllocateDescriptorSets(logical_device, &setAllocInfo, &UBO_descriptor_set) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate descriptor set.");
 	}
@@ -1108,31 +1173,61 @@ void create_descriptor_sets()
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UBO);
 
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = image_one.view;
-		imageInfo.sampler = image_one.sampler;
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = UBO_descriptor_set;
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &bufferInfo;
 
-		VkWriteDescriptorSet descriptorWrite[2] = {};
-		descriptorWrite[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite[0].dstSet = descriptor_set[i];
-		descriptorWrite[0].dstBinding = 0;
-		descriptorWrite[0].dstArrayElement = 0;
-		descriptorWrite[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite[0].descriptorCount = 1;
-		descriptorWrite[0].pBufferInfo = &bufferInfo;
-
-		descriptorWrite[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite[1].dstSet = descriptor_set[i];
-		descriptorWrite[1].dstBinding = 1;
-		descriptorWrite[1].dstArrayElement = 0;
-		descriptorWrite[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrite[1].descriptorCount = 1;
-		descriptorWrite[1].pImageInfo = &imageInfo;
-
-		vkUpdateDescriptorSets(logical_device, sizeof(descriptorWrite)/sizeof(descriptorWrite[0]), descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(logical_device, 1, &descriptorWrite, 0, nullptr);
 	}
 }
+void create_tex_descriptor_sets()
+{
+	VkDescriptorSetAllocateInfo setAllocInfo{};
+	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	setAllocInfo.descriptorPool = descriptor_pool;
+	setAllocInfo.descriptorSetCount = 1;
+	setAllocInfo.pSetLayouts = &tex_descriptor_set_layout;
+
+	if (vkAllocateDescriptorSets(logical_device, &setAllocInfo, &tex_descriptor_set) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate descriptor set.");
+	}
+
+	VkDescriptorImageInfo imageinfo1 = {};
+	imageinfo1.sampler = image_one.sampler;
+	imageinfo1.imageView = image_one.view;
+	imageinfo1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkDescriptorImageInfo imageinfo2 = {};
+	imageinfo2.sampler = image_one.sampler;
+	imageinfo2.imageView = image_two.view;
+	imageinfo2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkWriteDescriptorSet descriptorWriteImage[2] = {};
+	descriptorWriteImage[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWriteImage[0].dstSet = tex_descriptor_set;
+	descriptorWriteImage[0].dstBinding = 0;
+	descriptorWriteImage[0].dstArrayElement = 0;
+	descriptorWriteImage[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWriteImage[0].descriptorCount = 1;
+	descriptorWriteImage[0].pImageInfo = &imageinfo1;
+
+	descriptorWriteImage[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWriteImage[1].dstSet = tex_descriptor_set;
+	descriptorWriteImage[1].dstBinding = 1;
+	descriptorWriteImage[1].dstArrayElement = 0;
+	descriptorWriteImage[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWriteImage[1].descriptorCount = 1;
+	descriptorWriteImage[1].pImageInfo = &imageinfo2;
+
+	vkUpdateDescriptorSets(logical_device, 2, descriptorWriteImage, 0, nullptr);
+}
+
 void create_command_buffers()
 {
 	VkCommandBufferAllocateInfo allocCreateInfo{};
@@ -1172,18 +1267,30 @@ void init_vulkan(HWND win32_handle)
 	create_surface(win32_handle);
 	create_logical_device();
 	create_swapchain();
-	create_descriptor_set_layout();
+
+	create_UBO_descriptor_set_layout();
+	create_tex_descriptor_set_layout();
+
 	create_graphics_pipeline();
 	create_commandpool();
 	create_depth_resources();
-	create_texture_image();
+
+	create_texture_image(&image_one, texture_path);
+	create_texture_image(&image_two, texture_path2);
+
 	create_texture_sampler();
-	load_model();
+
+	load_model(model_path);
+	load_model(room_path);
+
 	create_vertex_buffer();
 	create_index_buffer();
 	create_uniform_buffers();
 	create_descriptor_pool();
-	create_descriptor_sets();
+
+	create_UBO_descriptor_sets();
+	create_tex_descriptor_sets();
+
 	create_command_buffers();
 	create_sync_objects();
 }
