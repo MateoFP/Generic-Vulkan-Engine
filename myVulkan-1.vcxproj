@@ -143,10 +143,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="resources\shaders\compile.bat" />
-    <None Include="resources\shaders\model_one.frag" />
-    <None Include="resources\shaders\model_one.vert" />
-    <None Include="resources\shaders\room_one.frag" />
-    <None Include="resources\shaders\room_one.vert" />
+    <None Include="resources\shaders\frag_file.frag" />
+    <None Include="resources\shaders\vert_file.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\init_vulkan.h" />

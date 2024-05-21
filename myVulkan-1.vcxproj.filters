@@ -23,16 +23,10 @@
     <None Include="resources\shaders\compile.bat">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="resources\shaders\model_one.frag">
+    <None Include="resources\shaders\frag_file.frag">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="resources\shaders\model_one.vert">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="resources\shaders\room_one.frag">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="resources\shaders\room_one.vert">
+    <None Include="resources\shaders\vert_file.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

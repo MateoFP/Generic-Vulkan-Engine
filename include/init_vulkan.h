@@ -5,6 +5,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define TINYOBJLOADER_IMPLEMENTATION
 #define MAX_FRAMES_IN_FLIGHT 2
+
 #define WIDTH 1600
 #define HEIGHT 900	
 
@@ -75,7 +76,6 @@ typedef struct Image
 	VkImageView		view;
 	VkDeviceMemory	memory;
 	VkFormat		format;
-	VkSampler		sampler;
 	int				width;
 	int				height;
 	int				depth;
@@ -83,14 +83,12 @@ typedef struct Image
 } Image;
 
 
-const char* room_path		     = "C:/dev/myVulkan-1/resources/models/school.obj";
-const char* model_path			 = "C:/dev/myVulkan-1/resources/models/model_one.obj";
-const char* texture_path		 = "C:/dev/myVulkan-1/resources/textures/tex_model_one.png";
-const char* texture_path2		 = "C:/dev/myVulkan-1/resources/textures/tex_room.png";
-const char* fragFile1			 = "C:/dev/myVulkan-1/resources/shaders/frag_model_one.spv";
-const char* vertFile1			 = "C:/dev/myVulkan-1/resources/shaders/vert_model_one.spv";
-const char* fragFile2			 = "C:/dev/myVulkan-1/resources/shaders/frag_room_one.spv";
-const char* vertFile2			 = "C:/dev/myVulkan-1/resources/shaders/vert_model_one.spv";
+const char* room_path		     = "C:/dev/myVulkan-1/resources/models/room.obj";
+const char* model_path			 = "C:/dev/myVulkan-1/resources/models/model.obj";
+const char* furnace_tex_path	 = "C:/dev/myVulkan-1/resources/textures/furnace_tex.png";
+const char* wood_tex_path		 = "C:/dev/myVulkan-1/resources/textures/wood_tex.png";
+const char* frag_file			 = "C:/dev/myVulkan-1/resources/shaders/frag_file.spv";
+const char* vert_file			 = "C:/dev/myVulkan-1/resources/shaders/vert_file.spv";
 const char* instanceLayers[]	 = { "VK_LAYER_KHRONOS_validation" };
 const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 									 VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -98,12 +96,13 @@ const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 									 VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
 
 
-std::vector<Vertex>			model_vertices;
-std::vector<uint32_t>		model_indices;
+std::vector<Vertex>			global_model_vertices;
+std::vector<uint32_t>		global_model_indices;
 
 Image						depth_image{};
 Image						image_one{};
 Image						image_two{};
+VkSampler					image_sampler;
 
 uint32_t					current_frame = 0;
 
@@ -480,8 +479,8 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, sets, 0, nullptr);
-		vkCmdDrawIndexed(command_buffer, model_indices.size(), 1, 0,0,0);
-	
+		vkCmdDrawIndexed(command_buffer, global_model_indices.size(), 1, 0,0,0);
+
 	vkCmdEndRendering(command_buffer);
 
 	set_image_layout(command_buffer, swapchain_images[image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -751,8 +750,8 @@ void create_tex_descriptor_set_layout()
 
 void create_graphics_pipeline()
 {
-	ReadEntireFile vert_shader_code = read_entire_file(vertFile1);
-	ReadEntireFile frag_shader_code = read_entire_file(fragFile1);
+	ReadEntireFile vert_shader_code = read_entire_file(vert_file);
+	ReadEntireFile frag_shader_code = read_entire_file(frag_file);
 
 	VkShaderModuleCreateInfo vertShaderCreateInfo{};
 	vertShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -773,55 +772,19 @@ void create_graphics_pipeline()
 		throw std::runtime_error("Failed to create shader module.");
 	}
 
-	VkPipelineShaderStageCreateInfo vertShaderStageCreateInfo{};
-	vertShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageCreateInfo.module = vertShaderModule;
-	vertShaderStageCreateInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo vert_stage{};
+	vert_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vert_stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vert_stage.module = vertShaderModule;
+	vert_stage.pName = "main";
 
-	VkPipelineShaderStageCreateInfo fragShaderStageCreateInfo{};
-	fragShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageCreateInfo.module = fragShaderModule;
-	fragShaderStageCreateInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo frag_stage{};
+	frag_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	frag_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	frag_stage.module = fragShaderModule;
+	frag_stage.pName = "main";
 
-	//2
-	ReadEntireFile vert_shader_code2 = read_entire_file(vertFile2);
-	ReadEntireFile frag_shader_code2 = read_entire_file(fragFile2);
-
-	VkShaderModuleCreateInfo vertShaderCreateInfo2{};
-	vertShaderCreateInfo2.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	vertShaderCreateInfo2.codeSize = vert_shader_code2.contents_size;
-	vertShaderCreateInfo2.pCode = (uint32_t*)(vert_shader_code2.contents);
-
-	VkShaderModuleCreateInfo fragShaderCreateInfo2{};
-	fragShaderCreateInfo2.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	fragShaderCreateInfo2.codeSize = frag_shader_code2.contents_size;
-	fragShaderCreateInfo2.pCode = (uint32_t*)(frag_shader_code2.contents);
-
-	if (vkCreateShaderModule(logical_device, &vertShaderCreateInfo2, nullptr, &vertShaderModule2) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create shader module.");
-	}
-	if (vkCreateShaderModule(logical_device, &fragShaderCreateInfo2, nullptr, &fragShaderModule2) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create shader module.");
-	}
-
-	VkPipelineShaderStageCreateInfo vertShaderStageCreateInfo2{};
-	vertShaderStageCreateInfo2.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageCreateInfo2.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageCreateInfo2.module = vertShaderModule2;
-	vertShaderStageCreateInfo2.pName = "main";
-
-	VkPipelineShaderStageCreateInfo fragShaderStageCreateInfo2{};
-	fragShaderStageCreateInfo2.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageCreateInfo2.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageCreateInfo2.module = fragShaderModule2;
-	fragShaderStageCreateInfo2.pName = "main";
-
-	VkPipelineShaderStageCreateInfo shaderStages[] = { //vertShaderStageCreateInfo, fragShaderStageCreateInfo,
-	vertShaderStageCreateInfo2,fragShaderStageCreateInfo2 }; 
+	VkPipelineShaderStageCreateInfo shaderStages[] = { frag_stage, vert_stage};
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -952,8 +915,6 @@ void create_graphics_pipeline()
 
 	vkDestroyShaderModule(logical_device, fragShaderModule, 0);
 	vkDestroyShaderModule(logical_device, vertShaderModule, 0);
-	vkDestroyShaderModule(logical_device, fragShaderModule2, 0);
-	vkDestroyShaderModule(logical_device, vertShaderModule2, 0);
 }
 void create_commandpool()
 {
@@ -1039,7 +1000,7 @@ void create_texture_sampler()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if(vkCreateSampler(logical_device, &samplerInfo, nullptr, &image_one.sampler) != VK_SUCCESS) 
+	if(vkCreateSampler(logical_device, &samplerInfo, nullptr, &image_sampler) != VK_SUCCESS) 
 	{
 		throw std::runtime_error("Failed to create texture sampler.");
 	}
@@ -1070,14 +1031,16 @@ void load_model(const char* path)
 			};
 			vertex.color = { 1.0f, 1.0f, 1.0f };
 
-			model_vertices.push_back(vertex);
-			model_indices.push_back(model_indices.size());
+			global_model_vertices.push_back(vertex);
+			global_model_indices.push_back(global_model_indices.size());
 		}
 	}
+	VkDeviceSize vertex_offset = global_model_vertices.size();
+	VkDeviceSize index_offset = global_model_indices.size();
 }
 void create_vertex_buffer()
 {
-	VkDeviceSize buffer_size = sizeof(model_vertices[0]) * model_vertices.size();
+	VkDeviceSize buffer_size = sizeof(global_model_vertices[0]) * global_model_vertices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1087,7 +1050,7 @@ void create_vertex_buffer()
 
 	void* data;
 	vkMapMemory(logical_device, stagingBufferMemory, 0, buffer_size, 0, &data);
-	memcpy(data, model_vertices.data(), buffer_size);
+	memcpy(data, global_model_vertices.data(), buffer_size);
 	vkUnmapMemory(logical_device, stagingBufferMemory);
 
 	create_buffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -1100,7 +1063,7 @@ void create_vertex_buffer()
 }
 void create_index_buffer()
 {
-	VkDeviceSize buffer_size = sizeof(model_indices[0]) * model_indices.size();
+	VkDeviceSize buffer_size = sizeof(global_model_indices[0]) * global_model_indices.size();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1110,7 +1073,7 @@ void create_index_buffer()
 
 	void* data;
 	vkMapMemory(logical_device, stagingBufferMemory, 0, buffer_size, 0, &data);
-	memcpy(data, model_indices.data(), buffer_size);
+	memcpy(data, global_model_indices.data(), buffer_size);
 	vkUnmapMemory(logical_device, stagingBufferMemory);
 
 	create_buffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -1199,12 +1162,12 @@ void create_tex_descriptor_sets()
 	}
 
 	VkDescriptorImageInfo imageinfo1 = {};
-	imageinfo1.sampler = image_one.sampler;
+	imageinfo1.sampler = image_sampler;
 	imageinfo1.imageView = image_one.view;
 	imageinfo1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkDescriptorImageInfo imageinfo2 = {};
-	imageinfo2.sampler = image_one.sampler;
+	imageinfo2.sampler = image_sampler;
 	imageinfo2.imageView = image_two.view;
 	imageinfo2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -1212,7 +1175,6 @@ void create_tex_descriptor_sets()
 	descriptorWriteImage[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWriteImage[0].dstSet = tex_descriptor_set;
 	descriptorWriteImage[0].dstBinding = 0;
-	descriptorWriteImage[0].dstArrayElement = 0;
 	descriptorWriteImage[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWriteImage[0].descriptorCount = 1;
 	descriptorWriteImage[0].pImageInfo = &imageinfo1;
@@ -1220,7 +1182,6 @@ void create_tex_descriptor_sets()
 	descriptorWriteImage[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWriteImage[1].dstSet = tex_descriptor_set;
 	descriptorWriteImage[1].dstBinding = 1;
-	descriptorWriteImage[1].dstArrayElement = 0;
 	descriptorWriteImage[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWriteImage[1].descriptorCount = 1;
 	descriptorWriteImage[1].pImageInfo = &imageinfo2;
@@ -1275,8 +1236,8 @@ void init_vulkan(HWND win32_handle)
 	create_commandpool();
 	create_depth_resources();
 
-	create_texture_image(&image_one, texture_path);
-	create_texture_image(&image_two, texture_path2);
+	create_texture_image(&image_one, furnace_tex_path);
+	create_texture_image(&image_two, wood_tex_path);
 
 	create_texture_sampler();
 
