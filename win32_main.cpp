@@ -57,10 +57,6 @@ HINSTANCE	prevInstance,
 LPSTR		commandline,
 int			showCode)
 {
-	LARGE_INTEGER perf_count_freq_result;
-	QueryPerformanceFrequency(&perf_count_freq_result);
-	int64_t perf_count_freq = perf_count_freq_result.QuadPart;
-
 	WNDCLASSA win32_class = {};
 	win32_class.lpfnWndProc = win32_callback;
 	win32_class.hInstance = instance;

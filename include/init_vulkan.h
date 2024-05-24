@@ -4,7 +4,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define TINYOBJLOADER_IMPLEMENTATION
-#define MAX_FRAMES_IN_FLIGHT 2
 
 #define WIDTH 1600
 #define HEIGHT 900	
@@ -104,15 +103,18 @@ Image						image_one{};
 Image						image_two{};
 VkSampler					image_sampler;
 
-uint32_t					current_frame = 0;
-
-VkBuffer					uniformBuffers[MAX_FRAMES_IN_FLIGHT];
-VkDeviceMemory				uniformBuffersMemory[MAX_FRAMES_IN_FLIGHT];
-void*						uniformBuffersMapped[MAX_FRAMES_IN_FLIGHT];
+VkBuffer					uniformBuffer;
+VkDeviceMemory				uniformBufferMemory;
+void*						uniformBufferMapped;
 
 VkDescriptorSet				UBO_descriptor_set;
 VkDescriptorSet				tex_descriptor_set;
+
 VkDescriptorPool			descriptor_pool;
+
+VkDescriptorPool			UBO_descriptor_pool;
+VkDescriptorPool			tex_descriptor_pool;
+
 VkDescriptorSetLayout		tex_descriptor_set_layout;
 VkDescriptorSetLayout		UBO_descriptor_set_layout;
 
@@ -121,19 +123,18 @@ VkBuffer					indexBuffer;
 VkDeviceMemory				vertexBufferMemory;
 VkBuffer					vertexBuffer;
 
-VkSemaphore					image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
-VkSemaphore					render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
-VkFence						in_flight_fences[MAX_FRAMES_IN_FLIGHT];
+VkSemaphore					image_available_semaphores;
+VkSemaphore					render_finished_semaphores;
+VkFence						in_flight_fences;
 
-VkCommandBuffer				command_buffers[MAX_FRAMES_IN_FLIGHT];
+VkCommandBuffer				command_buffer;
 VkCommandPool				command_pool;
 
 VkPipeline					graphicsPipeline;
 VkPipelineLayout			pipelineLayout;
 VkShaderModule				vertShaderModule;
 VkShaderModule				fragShaderModule;
-VkShaderModule				vertShaderModule2;
-VkShaderModule				fragShaderModule2;
+
 
 VkSwapchainKHR				swapchain;
 VkImageView*				swapchain_image_views;
@@ -362,16 +363,16 @@ ReadEntireFile read_entire_file(const char* file_path)
 
 	return ref;
 }
-void update_UBO(uint32_t image_index) 
+void update_UBO() 
 {
 	num++;
 	UBO ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), (num/5000.0f) * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.model = glm::rotate(glm::mat4(1.0f), (num/7000.0f) * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.view = glm::lookAt(glm::vec3(5.0f, 15.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 100.0f);
 	ubo.proj[1][1] *= -1;
 
-	memcpy(uniformBuffersMapped[image_index], &ubo, sizeof(ubo));
+	memcpy(uniformBufferMapped, &ubo, sizeof(ubo));
 }
 
 void copy_buffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
@@ -492,21 +493,21 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 }
 void draw_frame()
 {
-	vkWaitForFences(logical_device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
+	vkWaitForFences(logical_device, 1, &in_flight_fences, VK_TRUE, UINT64_MAX);
 
 	uint32_t image_index;
-	vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index);
+	vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX, image_available_semaphores, VK_NULL_HANDLE, &image_index);
 
-	update_UBO(current_frame);
+	update_UBO();
 
-	vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
+	vkResetFences(logical_device, 1, &in_flight_fences);
 
-	vkResetCommandBuffer(command_buffers[current_frame], 0);
-	record_command_buffer(command_buffers[current_frame], image_index);
+	vkResetCommandBuffer(command_buffer, 0);
+	record_command_buffer(command_buffer, image_index);
 
-	VkSemaphore waitSemaphores[] = { image_available_semaphores[current_frame] };
+	VkSemaphore waitSemaphores[] = { image_available_semaphores };
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore signalSemaphores[] = { render_finished_semaphores[current_frame] };
+	VkSemaphore signalSemaphores[] = { render_finished_semaphores };
 
 	VkSubmitInfo submitCreateInfo{};
 	submitCreateInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -514,11 +515,11 @@ void draw_frame()
 	submitCreateInfo.pWaitSemaphores = waitSemaphores;
 	submitCreateInfo.pWaitDstStageMask = waitStages;
 	submitCreateInfo.commandBufferCount = 1;
-	submitCreateInfo.pCommandBuffers = &command_buffers[current_frame];
+	submitCreateInfo.pCommandBuffers = &command_buffer;
 	submitCreateInfo.signalSemaphoreCount = 1;
 	submitCreateInfo.pSignalSemaphores = signalSemaphores;
 
-	if(vkQueueSubmit(graphics_queue, 1, &submitCreateInfo, in_flight_fences[current_frame]) != VK_SUCCESS)
+	if(vkQueueSubmit(graphics_queue, 1, &submitCreateInfo, in_flight_fences) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to submit draw command buffer.");
 	}
@@ -535,8 +536,6 @@ void draw_frame()
 	presentCreateInfo.pResults = nullptr; // Optional
 
 	vkQueuePresentKHR(graphics_queue, &presentCreateInfo);
-
-	current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void create_instance()
@@ -1084,33 +1083,31 @@ void create_index_buffer()
 	vkDestroyBuffer(logical_device, stagingBuffer, nullptr);
 	vkFreeMemory(logical_device, stagingBufferMemory, nullptr);
 }
-void create_uniform_buffers()
+void create_uniform_buffer()
 {
 	VkDeviceSize buffer_size = sizeof(UBO);
 
-	for(uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		uniformBuffers[i], uniformBuffersMemory[i]);
+	create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+	uniformBuffer, uniformBufferMemory);
 
-		vkMapMemory(logical_device, uniformBuffersMemory[i], 0, buffer_size, 0, &uniformBuffersMapped[i]);
-	}
+	vkMapMemory(logical_device, uniformBufferMemory, 0, buffer_size, 0, &uniformBufferMapped);
 }
-void create_descriptor_pool()
+
+void create_descriptor_pool(VkDescriptorType pool_size_type, 
+							VkDescriptorPool* pool_addr, uint32_t max_sets, 
+							uint32_t descriptor_count)
 {
-	VkDescriptorPoolSize poolSizes[2];
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = (uint32_t)(MAX_FRAMES_IN_FLIGHT);
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = (uint32_t)(MAX_FRAMES_IN_FLIGHT);
+	VkDescriptorPoolSize pool_size{};
+	pool_size.type = pool_size_type;
+	pool_size.descriptorCount = descriptor_count;
 
-	VkDescriptorPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = sizeof(poolSizes) / sizeof(poolSizes[0]);
-	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = (uint32_t)(MAX_FRAMES_IN_FLIGHT);
+	VkDescriptorPoolCreateInfo pool_info{};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.poolSizeCount = 1;
+	pool_info.pPoolSizes = &pool_size;
+	pool_info.maxSets = max_sets;
 
-	if(vkCreateDescriptorPool(logical_device, &poolInfo, nullptr, &descriptor_pool) != VK_SUCCESS)
+	if(vkCreateDescriptorPool(logical_device, &pool_info, nullptr, pool_addr) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor pool.");
 	}
@@ -1120,7 +1117,7 @@ void create_UBO_descriptor_sets()
 {
 	VkDescriptorSetAllocateInfo setAllocInfo{};
 	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	setAllocInfo.descriptorPool = descriptor_pool;
+	setAllocInfo.descriptorPool = UBO_descriptor_pool;
 	setAllocInfo.descriptorSetCount = 1;
 	setAllocInfo.pSetLayouts = &UBO_descriptor_set_layout;
 
@@ -1129,64 +1126,58 @@ void create_UBO_descriptor_sets()
 		throw std::runtime_error("Failed to allocate descriptor set.");
 	}
 
-	for(uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = uniformBuffers[i];
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UBO);
+	VkDescriptorBufferInfo bufferInfo{};
+	bufferInfo.buffer = uniformBuffer;
+	bufferInfo.offset = 0;
+	bufferInfo.range = sizeof(UBO);
 
-		VkWriteDescriptorSet descriptorWrite = {};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = UBO_descriptor_set;
-		descriptorWrite.dstBinding = 0;
-		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &bufferInfo;
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = UBO_descriptor_set;
+	descriptorWrite.dstBinding = 0;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrite.descriptorCount = 1;
+	descriptorWrite.pBufferInfo = &bufferInfo;
 
-		vkUpdateDescriptorSets(logical_device, 1, &descriptorWrite, 0, nullptr);
-	}
+	vkUpdateDescriptorSets(logical_device, 1, &descriptorWrite, 0, nullptr);
+
 }
 void create_tex_descriptor_sets()
 {
 	VkDescriptorSetAllocateInfo setAllocInfo{};
 	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	setAllocInfo.descriptorPool = descriptor_pool;
+	setAllocInfo.descriptorPool = tex_descriptor_pool;
 	setAllocInfo.descriptorSetCount = 1;
 	setAllocInfo.pSetLayouts = &tex_descriptor_set_layout;
+
+	Image descriptor_images[2];
+	descriptor_images[0] = image_one;
+	descriptor_images[1] = image_two;
 
 	if (vkAllocateDescriptorSets(logical_device, &setAllocInfo, &tex_descriptor_set) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate descriptor set.");
 	}
 
-	VkDescriptorImageInfo imageinfo1 = {};
-	imageinfo1.sampler = image_sampler;
-	imageinfo1.imageView = image_one.view;
-	imageinfo1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkDescriptorImageInfo image_infos[2];
+	for(uint32_t i = 0; i < 2; i++)
+	{
+		image_infos[i].sampler = image_sampler;
+		image_infos[i].imageView = descriptor_images[i].view;
+		image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
 
-	VkDescriptorImageInfo imageinfo2 = {};
-	imageinfo2.sampler = image_sampler;
-	imageinfo2.imageView = image_two.view;
-	imageinfo2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkWriteDescriptorSet descriptorWriteImage = {};
+	descriptorWriteImage.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWriteImage.dstSet = tex_descriptor_set;
+	descriptorWriteImage.dstBinding = 0;
+	descriptorWriteImage.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWriteImage.descriptorCount = 2;
+	descriptorWriteImage.pImageInfo = image_infos;
 
-	VkWriteDescriptorSet descriptorWriteImage[2] = {};
-	descriptorWriteImage[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWriteImage[0].dstSet = tex_descriptor_set;
-	descriptorWriteImage[0].dstBinding = 0;
-	descriptorWriteImage[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWriteImage[0].descriptorCount = 1;
-	descriptorWriteImage[0].pImageInfo = &imageinfo1;
 
-	descriptorWriteImage[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWriteImage[1].dstSet = tex_descriptor_set;
-	descriptorWriteImage[1].dstBinding = 1;
-	descriptorWriteImage[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWriteImage[1].descriptorCount = 1;
-	descriptorWriteImage[1].pImageInfo = &imageinfo2;
-
-	vkUpdateDescriptorSets(logical_device, 2, descriptorWriteImage, 0, nullptr);
+	vkUpdateDescriptorSets(logical_device, 1, &descriptorWriteImage, 0, nullptr);
 }
 
 void create_command_buffers()
@@ -1195,9 +1186,9 @@ void create_command_buffers()
 	allocCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocCreateInfo.commandPool = command_pool;
 	allocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocCreateInfo.commandBufferCount = 2;
+	allocCreateInfo.commandBufferCount = 1;
 
-	if(vkAllocateCommandBuffers(logical_device, &allocCreateInfo, command_buffers) != VK_SUCCESS)
+	if(vkAllocateCommandBuffers(logical_device, &allocCreateInfo, &command_buffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate command buffers.");
 	}
@@ -1211,15 +1202,13 @@ void create_sync_objects()
 	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	for(uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		if(vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &image_available_semaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &render_finished_semaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(logical_device, &fenceCreateInfo, nullptr, &in_flight_fences[i]) != VK_SUCCESS)
+	if(vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &image_available_semaphores) != VK_SUCCESS ||
+		vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &render_finished_semaphores) != VK_SUCCESS ||
+		vkCreateFence(logical_device, &fenceCreateInfo, nullptr, &in_flight_fences) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create semaphores.");
 		}
-	}
+
 }
 									
 void init_vulkan(HWND win32_handle)
@@ -1238,7 +1227,6 @@ void init_vulkan(HWND win32_handle)
 
 	create_texture_image(&image_one, furnace_tex_path);
 	create_texture_image(&image_two, wood_tex_path);
-
 	create_texture_sampler();
 
 	load_model(model_path);
@@ -1246,8 +1234,13 @@ void init_vulkan(HWND win32_handle)
 
 	create_vertex_buffer();
 	create_index_buffer();
-	create_uniform_buffers();
-	create_descriptor_pool();
+	create_uniform_buffer();
+
+	create_descriptor_pool(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+						   &UBO_descriptor_pool, 1,2);
+
+	create_descriptor_pool(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+						   &tex_descriptor_pool, 1,2);
 
 	create_UBO_descriptor_sets();
 	create_tex_descriptor_sets();
