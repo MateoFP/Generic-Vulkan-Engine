@@ -98,6 +98,10 @@ const char* instanceExtensions[] = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 std::vector<Vertex>			global_model_vertices;
 std::vector<uint32_t>		global_model_indices;
 
+uint32_t					image_idx = 0;
+uint32_t					image_idx2 = 1;
+
+uint32_t					image_index;
 Image						depth_image{};
 Image						image_one{};
 Image						image_two{};
@@ -472,6 +476,7 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 
 	VkDescriptorSet sets[2] = {UBO_descriptor_set, tex_descriptor_set};
 
+
 	vkCmdBeginRendering(command_buffer, &render_info);
 
 		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -479,8 +484,19 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, sets, 0, nullptr);
-		vkCmdDrawIndexed(command_buffer, global_model_indices.size(), 1, 0,0,0);
+
+		vkCmdPushConstants(command_buffer, pipelineLayout, VK_SHADER_STAGE_ALL,
+						   0, sizeof(uint32_t), (void*)&image_idx);
+
+		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, sets, 
+								0, nullptr);
+
+		vkCmdDrawIndexed(command_buffer, global_model_indices.size() -2448, 1, 0, 2448,0);
+
+		vkCmdPushConstants(command_buffer, pipelineLayout, VK_SHADER_STAGE_ALL,
+						   0, sizeof(uint32_t), (void*)&image_idx2);
+
+		vkCmdDrawIndexed(command_buffer, 2448, 1, 0, 0, 0);
 
 	vkCmdEndRendering(command_buffer);
 
@@ -495,7 +511,6 @@ void draw_frame()
 {
 	vkWaitForFences(logical_device, 1, &in_flight_fences, VK_TRUE, UINT64_MAX);
 
-	uint32_t image_index;
 	vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX, image_available_semaphores, VK_NULL_HANDLE, &image_index);
 
 	update_UBO();
@@ -704,7 +719,6 @@ void create_swapchain()
 		}
 	}
 }
-
 void create_UBO_descriptor_set_layout()
 {
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -728,12 +742,13 @@ void create_tex_descriptor_set_layout()
 {
     VkDescriptorSetLayoutBinding global_texture_bindings[2] = {};
 	global_texture_bindings[0].binding = 0;
-	global_texture_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	global_texture_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 	global_texture_bindings[0].descriptorCount = 1;
 	global_texture_bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+
 	global_texture_bindings[1].binding = 1;
-	global_texture_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	global_texture_bindings[1].descriptorCount = 1;
+	global_texture_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	global_texture_bindings[1].descriptorCount = 2;
 	global_texture_bindings[1].stageFlags = VK_SHADER_STAGE_ALL;
 
     VkDescriptorSetLayoutCreateInfo layout_info = {};
@@ -741,12 +756,11 @@ void create_tex_descriptor_set_layout()
     layout_info.bindingCount = 2;
     layout_info.pBindings = global_texture_bindings;
 
-	if (vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &tex_descriptor_set_layout) != VK_SUCCESS)
+	if(vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &tex_descriptor_set_layout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor set layout.");
 	}
 }
-
 void create_graphics_pipeline()
 {
 	ReadEntireFile vert_shader_code = read_entire_file(vert_file);
@@ -872,12 +886,17 @@ void create_graphics_pipeline()
 
 	VkDescriptorSetLayout layouts[2] = {UBO_descriptor_set_layout, tex_descriptor_set_layout};
 
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(uint32_t);
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.setLayoutCount = 2;
 	pipelineLayoutCreateInfo.pSetLayouts = layouts;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = 0;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 
 	if(vkCreatePipelineLayout(logical_device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 	{
@@ -1092,13 +1111,11 @@ void create_uniform_buffer()
 
 	vkMapMemory(logical_device, uniformBufferMemory, 0, buffer_size, 0, &uniformBufferMapped);
 }
-
-void create_descriptor_pool(VkDescriptorType pool_size_type, 
-							VkDescriptorPool* pool_addr, uint32_t max_sets, 
-							uint32_t descriptor_count)
+void create_descriptor_pool(VkDescriptorType pool_type, VkDescriptorPool* pool_addr, 
+							uint32_t max_sets, uint32_t descriptor_count)
 {
 	VkDescriptorPoolSize pool_size{};
-	pool_size.type = pool_size_type;
+	pool_size.type = pool_type;
 	pool_size.descriptorCount = descriptor_count;
 
 	VkDescriptorPoolCreateInfo pool_info{};
@@ -1112,8 +1129,7 @@ void create_descriptor_pool(VkDescriptorType pool_size_type,
 		throw std::runtime_error("Failed to create descriptor pool.");
 	}
 }
-
-void create_UBO_descriptor_sets()
+void create_UBO_descriptor_set()
 {
 	VkDescriptorSetAllocateInfo setAllocInfo{};
 	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1155,7 +1171,7 @@ void create_tex_descriptor_sets()
 	descriptor_images[0] = image_one;
 	descriptor_images[1] = image_two;
 
-	if (vkAllocateDescriptorSets(logical_device, &setAllocInfo, &tex_descriptor_set) != VK_SUCCESS)
+	if(vkAllocateDescriptorSets(logical_device, &setAllocInfo, &tex_descriptor_set) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate descriptor set.");
 	}
@@ -1163,23 +1179,33 @@ void create_tex_descriptor_sets()
 	VkDescriptorImageInfo image_infos[2];
 	for(uint32_t i = 0; i < 2; i++)
 	{
-		image_infos[i].sampler = image_sampler;
+		image_infos[i].sampler = nullptr;
 		image_infos[i].imageView = descriptor_images[i].view;
 		image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
-	VkWriteDescriptorSet descriptorWriteImage = {};
-	descriptorWriteImage.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWriteImage.dstSet = tex_descriptor_set;
-	descriptorWriteImage.dstBinding = 0;
-	descriptorWriteImage.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWriteImage.descriptorCount = 2;
-	descriptorWriteImage.pImageInfo = image_infos;
+	VkDescriptorImageInfo sampler_info = {};
+	sampler_info.sampler = image_sampler;
 
+	VkWriteDescriptorSet descriptorWriteImage[2] = {};
+	descriptorWriteImage[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWriteImage[0].dstSet = tex_descriptor_set;
+	descriptorWriteImage[0].dstBinding = 0;
+	descriptorWriteImage[0].dstArrayElement = 0;
+	descriptorWriteImage[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	descriptorWriteImage[0].descriptorCount = 1;
+	descriptorWriteImage[0].pImageInfo = &sampler_info;
 
-	vkUpdateDescriptorSets(logical_device, 1, &descriptorWriteImage, 0, nullptr);
+	descriptorWriteImage[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWriteImage[1].dstSet = tex_descriptor_set;
+	descriptorWriteImage[1].dstBinding = 1;
+	descriptorWriteImage[1].dstArrayElement = 0;
+	descriptorWriteImage[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	descriptorWriteImage[1].descriptorCount = 2;
+	descriptorWriteImage[1].pImageInfo = image_infos;
+
+	vkUpdateDescriptorSets(logical_device, 2, descriptorWriteImage, 0, nullptr);
 }
-
 void create_command_buffers()
 {
 	VkCommandBufferAllocateInfo allocCreateInfo{};
@@ -1242,7 +1268,7 @@ void init_vulkan(HWND win32_handle)
 	create_descriptor_pool(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 						   &tex_descriptor_pool, 1,2);
 
-	create_UBO_descriptor_sets();
+	create_UBO_descriptor_set();
 	create_tex_descriptor_sets();
 
 	create_command_buffers();
