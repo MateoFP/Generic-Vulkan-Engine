@@ -476,7 +476,6 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 
 	VkDescriptorSet sets[2] = {UBO_descriptor_set, tex_descriptor_set};
 
-
 	vkCmdBeginRendering(command_buffer, &render_info);
 
 		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -484,12 +483,11 @@ void record_command_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 		VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 
+								0, 2, sets, 0, nullptr);
 
 		vkCmdPushConstants(command_buffer, pipelineLayout, VK_SHADER_STAGE_ALL,
 						   0, sizeof(uint32_t), (void*)&image_idx);
-
-		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, sets, 
-								0, nullptr);
 
 		vkCmdDrawIndexed(command_buffer, global_model_indices.size() -2448, 1, 0, 2448,0);
 
