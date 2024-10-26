@@ -1,22 +1,30 @@
 #version 450
 
-layout(binding = 0) uniform UniformBufferObject 
+layout(set = 0, binding = 0) uniform Global_UBO 
 {
     mat4 model;
     mat4 view;
     mat4 proj;
-} ubo;
+    mat4 projView;
+} gUBO;
+
+layout(set = 0, binding = 1) uniform Model_UBO
+{
+    mat4 model[3];
+} mUBO;
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inColor;
-layout(location = 2) in vec2 inTexCoord;
+//layout(location = 1) in vec3 Normal;
+layout(location = 1) in vec2 inUv;
+layout(location = 2) in uint inTexIndex;
+layout(location = 3) in uint inModelIndex;
 
-layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 fragTexCoord;
+layout(location = 0) out uint outTexIndex;
+layout(location = 1) out vec2 outUv;
 
 void main() 
 {
-    gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
-    fragColor = inColor;
-    fragTexCoord = inTexCoord;
+    gl_Position = gUBO.projView * mUBO.model[inModelIndex] * vec4(inPosition, 1);
+    outTexIndex = inTexIndex;
+    outUv =  inUv;
 }
