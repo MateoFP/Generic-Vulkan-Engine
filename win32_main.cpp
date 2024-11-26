@@ -110,7 +110,18 @@ void Win32MessageLoop(GameInput *input, Character *player, HWND window)
 				player->angle = atan2(x_dist, z_dist);
 				player->moving = true;
 			} break;
-
+			case WM_MOUSEWHEEL:
+			{
+				int32_t wheel_pos = (int32_t)message.wParam;
+				if(wheel_pos < 0)
+				{
+					cam.position.xyz[1] += 20;
+				}
+				else
+				{
+					cam.position.xyz[1] -= 20;
+				}
+			} break;
 			default:
 			{
 				TranslateMessage(&message);

@@ -111,7 +111,7 @@ void update_UBO(Character *player)
 {	
 	gubo.model = mat4_diagonal(1.0f);
 	gubo.view = mat4_look_at(cam.position, cam.look_at, {0.0f,1.0f,0.0f});
-	gubo.proj = mat4_perspective(DegToRad(40.0f), (float)extent.width/(float)extent.height, 1.0f, 120.0f);
+	gubo.proj = mat4_perspective(DegToRad(40.0f), (float)extent.width/(float)extent.height, 1.0f, 1200.0f);
 	gubo.proj.element[1][1] *= -1;
 	gubo.projView = mat4_multiply(gubo.proj, gubo.view); //maybe broken
 	memcpy(global_uniform_buffer_mapped, &gubo, sizeof(gubo));
@@ -211,7 +211,7 @@ void GameUpdate(Character *player, GameInput* input)
 
 	if(input->key_spacebar.ended_down)
 	{
-		cam.position = {player->position.xyz[0] -20.0f, cam.position.xyz[1], player->position.xyz[2]};
+		cam.position = {player->position.xyz[0] -20.0f, 90.0f, player->position.xyz[2]}; //90.0f or cam.position.xyz[1] ?
 		cam.look_at = {player->position.xyz[0], 1.0f, player->position.xyz[2]};
 	}
 	input->MouseRay = {cam.position};

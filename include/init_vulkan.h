@@ -2,7 +2,6 @@
 #include "vulkan_backend.h"
 #include "stb_image.h"
 #include "tiny_obj_loader.h"
-//#include <chrono>
 
 #define MODEL_NUM	3
 #define TEXTURE_NUM 3
@@ -17,7 +16,7 @@ const char* material_tex_path	= "C:/dev/myVulkan-1/resources/textures/material.p
 const char* frag_file			= "C:/dev/myVulkan-1/resources/shaders/frag_file.spv";
 const char* vert_file			= "C:/dev/myVulkan-1/resources/shaders/vert_file.spv";
 
-std::vector<Vertex>		global_model_vertices;
+std::vector<Vertex> global_model_vertices;
 
 GUBO		gubo{};
 Image		depth_image{};
@@ -116,10 +115,7 @@ void create_image(Image* image, VkImageTiling tiling, VkImageUsageFlags usage,
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.flags = 0;
 
-	if(vkCreateImage(logical_device, &imageInfo, nullptr, &image->image) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create image.");
-	}
+	Assert(vkCreateImage(logical_device, &imageInfo, nullptr, &image->image) == VK_SUCCESS);
 
 	VkMemoryRequirements mem_req;
 	vkGetImageMemoryRequirements(logical_device, image->image, &mem_req);
@@ -140,14 +136,8 @@ void create_image(Image* image, VkImageTiling tiling, VkImageUsageFlags usage,
 	allocInfo.allocationSize = mem_req.size;
 	allocInfo.memoryTypeIndex = mem_property;
 
-	if(vkAllocateMemory(logical_device, &allocInfo, nullptr, &image->memory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate image memory.");
-	}
-	if(vkBindImageMemory(logical_device, image->image, image->memory, 0) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to bind image.image to image.memory.");
-	}
+	Assert(vkAllocateMemory(logical_device, &allocInfo, nullptr, &image->memory) == VK_SUCCESS);
+	Assert(vkBindImageMemory(logical_device, image->image, image->memory, 0) == VK_SUCCESS);
 
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -160,10 +150,7 @@ void create_image(Image* image, VkImageTiling tiling, VkImageUsageFlags usage,
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
-	if(vkCreateImageView(logical_device, &viewInfo, nullptr, &image->view) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create texture image view.");
-	}
+	Assert(vkCreateImageView(logical_device, &viewInfo, nullptr, &image->view) == VK_SUCCESS);
 }
 void set_image_layout(VkCommandBuffer command_buffer, VkImage images, 
 					  VkImageLayout oldLayout, VkImageLayout newLayout)
@@ -282,10 +269,7 @@ void create_buffer(VkDeviceSize	size, VkBufferUsageFlags usage, VkMemoryProperty
 	bufferCreateInfo.usage = usage;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if(vkCreateBuffer(logical_device, &bufferCreateInfo, 0, &buffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create buffer.");
-	}
+	Assert(vkCreateBuffer(logical_device, &bufferCreateInfo, 0, &buffer) == VK_SUCCESS);
 
 	VkMemoryRequirements mem_req;
 	vkGetBufferMemoryRequirements(logical_device, buffer, &mem_req);
@@ -306,22 +290,15 @@ void create_buffer(VkDeviceSize	size, VkBufferUsageFlags usage, VkMemoryProperty
 	memoryAllocInfo.allocationSize = mem_req.size;
 	memoryAllocInfo.memoryTypeIndex = mem_property;
 
-	if(vkAllocateMemory(logical_device, &memoryAllocInfo, 0, &bufferMemory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate buffer memory.");
-	}
-
-	vkBindBufferMemory(logical_device, buffer, bufferMemory, 0);
+	Assert(vkAllocateMemory(logical_device, &memoryAllocInfo, 0, &bufferMemory) == VK_SUCCESS);
+	Assert(vkBindBufferMemory(logical_device, buffer, bufferMemory, 0) == VK_SUCCESS); //maybe not
 }   
 void record_gcommand_buffer(VkCommandBuffer command_buffer, uint32_t image_index)
 {
 	VkCommandBufferBeginInfo beingInfo{};
 	beingInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-	if(vkBeginCommandBuffer(command_buffer, &beingInfo) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to begin recording command buffer.");
-	}
+	Assert(vkBeginCommandBuffer(command_buffer, &beingInfo) == VK_SUCCESS);
 
 	set_image_layout(command_buffer, swapchain_images[image_index], 
 					 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -372,10 +349,7 @@ void record_gcommand_buffer(VkCommandBuffer command_buffer, uint32_t image_index
 	set_image_layout(command_buffer, swapchain_images[image_index], 
 					 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-	if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to record command buffer.");
-	}
+	Assert(vkEndCommandBuffer(command_buffer) == VK_SUCCESS);
 }
 
 VkInstance create_instance(const char* instanceLayers)
@@ -400,10 +374,7 @@ VkInstance create_instance(const char* instanceLayers)
 	instanceCreateInfo.ppEnabledLayerNames = &instanceLayers;
 
 	VkInstance my_instance;
-	if(vkCreateInstance(&instanceCreateInfo, 0, &my_instance) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create instance.");
-	}
+	Assert(vkCreateInstance(&instanceCreateInfo, 0, &my_instance) == VK_SUCCESS);
 
 	return my_instance;
 }
@@ -414,10 +385,7 @@ void create_surface(VkInstance my_instance, HWND win32_handle)
 	surface_create_info.hinstance = GetModuleHandleW(NULL);
 	surface_create_info.hwnd = win32_handle;
 
-	if(vkCreateWin32SurfaceKHR(my_instance, &surface_create_info, NULL, &surface) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create win32 surface.");
-	}
+	Assert(vkCreateWin32SurfaceKHR(my_instance, &surface_create_info, NULL, &surface) == VK_SUCCESS);
 }
 void create_logical_device(VkInstance my_instance, const char* instanceLayers)
 {
@@ -470,10 +438,7 @@ void create_logical_device(VkInstance my_instance, const char* instanceLayers)
 	deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
 	deviceInfo.ppEnabledExtensionNames = deviceExtensions;
 
-	if(vkCreateDevice(physical_device, &deviceInfo, 0, &logical_device) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create logical device.");
-	}
+	Assert(vkCreateDevice(physical_device, &deviceInfo, 0, &logical_device) == VK_SUCCESS);
 	vkGetDeviceQueue(logical_device, graphics_family, 0, &graphics_queue);
 }
 void create_swapchain()
@@ -492,7 +457,7 @@ void create_swapchain()
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, surface_formats);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &present_mode_count, surface_present_modes);
 
-	surface_format = surface_formats[2];
+	surface_format = surface_formats[4];
 	surface_present_mode = surface_present_modes[1];
 	extent = surface_cap.currentExtent;
 
@@ -518,10 +483,7 @@ void create_swapchain()
 	swapchainCreateInfo.clipped = VK_TRUE;
 	swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if(vkCreateSwapchainKHR(logical_device, &swapchainCreateInfo, nullptr, &swapchain) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create swapchain.");
-	}
+	Assert(vkCreateSwapchainKHR(logical_device, &swapchainCreateInfo, nullptr, &swapchain) == VK_SUCCESS);
 
 	vkGetSwapchainImagesKHR(logical_device, swapchain, &image_count, nullptr);
 	swapchain_images = (VkImage*)malloc(image_count * sizeof(VkImage));
@@ -545,10 +507,7 @@ void create_swapchain()
 		ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
-		if(vkCreateImageView(logical_device, &ImageViewCreateInfo, 0, &swapchain_image_views[i]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create image views.");
-		}
+		Assert(vkCreateImageView(logical_device, &ImageViewCreateInfo, 0, &swapchain_image_views[i]) == VK_SUCCESS);
 	}
 }
 void create_descriptor_set_layouts()
@@ -572,10 +531,7 @@ void create_descriptor_set_layouts()
 	layoutInfo.bindingCount = 2;
 	layoutInfo.pBindings = uboLayoutBinding;
 
-	if(vkCreateDescriptorSetLayout(logical_device, &layoutInfo, nullptr, &layouts[0]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor set layout.");
-	}
+	Assert(vkCreateDescriptorSetLayout(logical_device, &layoutInfo, nullptr, &layouts[0]) == VK_SUCCESS);
 
 	//texture descriptor set layout
     VkDescriptorSetLayoutBinding global_texture_bindings[2] = {};
@@ -594,10 +550,7 @@ void create_descriptor_set_layouts()
     layout_info.bindingCount = 2;
     layout_info.pBindings = global_texture_bindings;
 
-	if(vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &layouts[1]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor set layout.");
-	}
+	Assert(vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &layouts[1]) == VK_SUCCESS);
 }
 void create_graphics_pipeline()
 {
@@ -617,14 +570,8 @@ void create_graphics_pipeline()
 	VkShaderModule	vert_module;
 	VkShaderModule	frag_module;
 
-	if(vkCreateShaderModule(logical_device, &vertShaderCreateInfo, nullptr, &vert_module) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create shader module.");
-	}
-	if(vkCreateShaderModule(logical_device, &fragShaderCreateInfo, nullptr, &frag_module) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create shader module.");
-	}
+	Assert(vkCreateShaderModule(logical_device, &vertShaderCreateInfo, nullptr, &vert_module) == VK_SUCCESS);
+	Assert(vkCreateShaderModule(logical_device, &fragShaderCreateInfo, nullptr, &frag_module) == VK_SUCCESS);
 
 	VkPipelineShaderStageCreateInfo vert_stage{};
 	vert_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -732,10 +679,7 @@ void create_graphics_pipeline()
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = 0;
 
-	if(vkCreatePipelineLayout(logical_device, &pipelineLayoutCreateInfo, nullptr, &pipeline_layout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create pipeline layout.");
-	}
+	Assert(vkCreatePipelineLayout(logical_device, &pipelineLayoutCreateInfo, nullptr, &pipeline_layout) == VK_SUCCESS);
 
 	VkPipelineRenderingCreateInfoKHR pipeline_rendering_info{};
 	pipeline_rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
@@ -760,10 +704,7 @@ void create_graphics_pipeline()
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
-	if(vkCreateGraphicsPipelines(logical_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphics_pipeline) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create graphics pipeline.");
-	}
+	Assert(vkCreateGraphicsPipelines(logical_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphics_pipeline) == VK_SUCCESS);
 
 	vkDestroyShaderModule(logical_device, frag_module, 0);
 	vkDestroyShaderModule(logical_device, vert_module, 0);
@@ -775,10 +716,7 @@ void create_command_pool(VkCommandPool* pool)
 	poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	poolCreateInfo.queueFamilyIndex = graphics_family;
 
-	if(vkCreateCommandPool(logical_device, &poolCreateInfo, nullptr, pool) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create command pool!");
-	}
+	Assert(vkCreateCommandPool(logical_device, &poolCreateInfo, nullptr, pool) == VK_SUCCESS);
 }
 void create_depth_image()
 {
@@ -800,10 +738,7 @@ void load_texture(Image* image, const char* texturepath)
 	image->format = VK_FORMAT_R8G8B8A8_SRGB;
 	VkDeviceSize image_size = (uint64_t)image->width * (uint64_t)image->height * 4;
 
-	if(!pixels) 
-	{
-		throw std::runtime_error("Failed to load texture image.");
-	}
+	Assert(pixels);
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -812,7 +747,7 @@ void load_texture(Image* image, const char* texturepath)
 	VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(logical_device, stagingBufferMemory, 0, image_size, 0, &data);
+	Assert(vkMapMemory(logical_device, stagingBufferMemory, 0, image_size, 0, &data) == VK_SUCCESS);
 		memcpy(data, pixels, (size_t)(image_size));
 	vkUnmapMemory(logical_device, stagingBufferMemory);
 
@@ -852,10 +787,7 @@ void create_texture_sampler()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if(vkCreateSampler(logical_device, &samplerInfo, nullptr, &image_sampler) != VK_SUCCESS) 
-	{
-		throw std::runtime_error("Failed to create texture sampler.");
-	}
+	Assert(vkCreateSampler(logical_device, &samplerInfo, nullptr, &image_sampler) == VK_SUCCESS);
 }
 void load_model(const char* modelpath, uint32_t tex_id, uint32_t model_id)
 {
@@ -865,10 +797,7 @@ void load_model(const char* modelpath, uint32_t tex_id, uint32_t model_id)
 	std::string warn;
 	std::string err;
 
-	if(!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelpath, nullptr))
-	{
-		throw std::runtime_error(warn + err);
-	}
+	Assert(tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelpath, nullptr));
 
 	//for every shape
 	for(uint32_t s = 0; s < shapes.size(); s++) 
@@ -911,7 +840,7 @@ void create_gvertex_buffer()
 				  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(logical_device, stagingBufferMemory, 0, buffer_size, 0, &data);
+	Assert(vkMapMemory(logical_device, stagingBufferMemory, 0, buffer_size, 0, &data) == VK_SUCCESS);
 	memcpy(data, global_model_vertices.data(), buffer_size);
 	vkUnmapMemory(logical_device, stagingBufferMemory);
 
@@ -930,7 +859,7 @@ void create_guniform_buffer()
 	create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				  global_uniform_buffer.buffer, global_uniform_buffer.mem);
 
-	vkMapMemory(logical_device, global_uniform_buffer.mem, 0, buffer_size, 0, &global_uniform_buffer_mapped);
+	Assert(vkMapMemory(logical_device, global_uniform_buffer.mem, 0, buffer_size, 0, &global_uniform_buffer_mapped) == VK_SUCCESS);
 }
 void create_muniform_buffer()
 {
@@ -939,7 +868,7 @@ void create_muniform_buffer()
 	create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				  model_uniform_buffer.buffer, model_uniform_buffer.mem);
 
-	vkMapMemory(logical_device, model_uniform_buffer.mem, 0, buffer_size, 0, &model_uniform_buffer_mapped);
+	Assert(vkMapMemory(logical_device, model_uniform_buffer.mem, 0, buffer_size, 0, &model_uniform_buffer_mapped) == VK_SUCCESS);
 }
 void create_descriptor_set(VkDescriptorType pool_type, VkDescriptorPool pool, uint32_t desc_count, 
 						   VkDescriptorSetLayout* layout, VkDescriptorSet* set)
@@ -954,10 +883,7 @@ void create_descriptor_set(VkDescriptorType pool_type, VkDescriptorPool pool, ui
 	pool_info.pPoolSizes = &pool_size;
 	pool_info.maxSets = 1;
 
-	if(vkCreateDescriptorPool(logical_device, &pool_info, nullptr, &pool) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor pool.");
-	}
+	Assert(vkCreateDescriptorPool(logical_device, &pool_info, nullptr, &pool) == VK_SUCCESS);
 
 	VkDescriptorSetAllocateInfo setAllocInfo{};
 	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -965,10 +891,7 @@ void create_descriptor_set(VkDescriptorType pool_type, VkDescriptorPool pool, ui
 	setAllocInfo.descriptorSetCount = 1;
 	setAllocInfo.pSetLayouts = layout;
 
-	if(vkAllocateDescriptorSets(logical_device, &setAllocInfo, set) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate descriptor set.");
-	}
+	Assert(vkAllocateDescriptorSets(logical_device, &setAllocInfo, set) == VK_SUCCESS);
 }
 void write_descriptor_sets()
 {
@@ -1041,10 +964,7 @@ void create_gcommand_buffer()
 	allocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocCreateInfo.commandBufferCount = 1;
 
-	if(vkAllocateCommandBuffers(logical_device, &allocCreateInfo, &gcommand_buffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate command buffers.");
-	}
+	Assert(vkAllocateCommandBuffers(logical_device, &allocCreateInfo, &gcommand_buffer) == VK_SUCCESS);
 }
 void create_sync_objects()
 {
@@ -1055,12 +975,9 @@ void create_sync_objects()
 	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	if(vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &image_available_semaphores) != VK_SUCCESS ||
-	   vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &render_finished_semaphores) != VK_SUCCESS ||
-	   vkCreateFence(logical_device, &fenceCreateInfo, nullptr, &in_flight_fences) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create semaphores.");
-		}
+	Assert(vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &image_available_semaphores) == VK_SUCCESS);
+	Assert(vkCreateSemaphore(logical_device, &semaphoreCreateInfo, nullptr, &render_finished_semaphores) == VK_SUCCESS);
+	Assert(vkCreateFence(logical_device, &fenceCreateInfo, nullptr, &in_flight_fences) == VK_SUCCESS);
 }
 
 void init_vulkan(HWND win32_handle)
