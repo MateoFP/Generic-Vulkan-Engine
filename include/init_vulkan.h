@@ -16,6 +16,7 @@ const char* material_tex_path	= "C:/dev/myVulkan-1/resources/textures/material.p
 const char* frag_file			= "C:/dev/myVulkan-1/resources/shaders/frag_file.spv";
 const char* vert_file			= "C:/dev/myVulkan-1/resources/shaders/vert_file.spv";
 
+//keep going noob
 std::vector<Vertex> global_model_vertices;
 
 GUBO		gubo{};
