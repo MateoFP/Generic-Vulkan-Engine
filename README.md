@@ -1,1 +1,1 @@
-Generic Vulkan Game Engine (Windows)
+Vulkan Engine Windows 
